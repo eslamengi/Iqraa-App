@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مقرأتي - جدول الربع الأسبوعي</title>
+    <link href="https://googleapis.com" rel="stylesheet">
+    <script src="https://cloudflare.com"></script>
+    <script src="https://cloudflare.com"></script>
+    <style>
+        body { font-family: 'Cairo', sans-serif; background-color: #f0f4f8; color: #333; display: flex; justify-content: center; padding: 20px; }
+        .container { background-color: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 800px; border-top: 8px solid #0056b3; }
+        h1 { color: #0056b3; text-align: center; margin-bottom: 25px; font-size: 28px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #0056b3; }
+        select, input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; text-align: center; font-family: 'Cairo'; }
+        .checkbox-group { margin: 20px 0; display: flex; align-items: center; gap: 10px; }
+        button { width: 100%; padding: 12px; background-color: #0056b3; color: white; border: none; border-radius: 6px; font-size: 18px; cursor: pointer; transition: background 0.3s; font-weight: bold; margin-bottom: 10px; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        .action-buttons { display: none; margin-top: 15px; gap: 10px; }
+        .png-btn { background-color: #28a745; flex: 1; }
+        .pdf-btn { background-color: #17a2b8; flex: 1; }
+        
+        table { width: 100%; margin-top: 25px; border-collapse: collapse; display: none; background: white; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
+        th { background-color: #0056b3; color: white; }
+        .quran-text { font-family: 'Amiri', serif; font-size: 1.3rem; line-height: 2.2; text-align: justify; direction: rtl; padding: 15px !important; }
+        .verse-num { color: #0056b3; font-weight: bold; font-size: 0.9rem; margin: 0 3px; }
+        
+        #secondSurahSection { display: none; margin-top: 15px; padding: 15px; border: 1px dashed #0056b3; border-radius: 8px; background-color: #fafcfe; }
+        .loading { text-align: center; color: #0056b3; display: none; margin: 10px 0; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>مقرأتي</h1>
+    
+    <div class="form-group">
+        <label>السورة</label>
+        <select id="surah1" onchange="updateMaxVerse(1)"></select>
+    </div>
+    
+    <div class="form-group">
+        <label>آية بداية الربع</label>
+        <input type="number" id="startVerse" min="1" value="1">
+    </div>
+
+    <div class="checkbox-group">
+        <input type="checkbox" id="splitToggle" onchange="toggleSecondSurah()">
+        <label for="splitToggle" style="cursor:pointer;">الربع ممتد لسورة أخرى؟</label>
+    </div>
+
+    <div id="secondSurahSection">
+        <div class="form-group">
+            <label>رقم آخر آية في السورة الحالية</label>
+            <input type="number" id="lastVerseSurah1" readonly>
+        </div>
+        <div class="form-group">
+            <label>السورة الثانية</label>
+            <select id="surah2" onchange="updateMaxVerse(2)"></select>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label id="endLabel">رقم آية نهاية الربع</label>
+        <input type="number" id="endVerse" min="1">
+    </div>
+
+    <button id="generateBtn" onclick="generateTable()">تقسيم الآيات وعرض النص</button>
+    <div id="loader" class="loading">جاري جلب الآيات من قاعدة البيانات...</div>
+    
+    <div id="actionButtons" class="action-buttons">
+        <button class="png-btn" onclick="saveAsImage()">حفظ كصورة PNG</button>
+        <button class="pdf-btn" onclick="saveAsPDF()">حفظ كملف PDF</button>
+    </div>
+
+    <div id="tableContainer">
+        <table id="resultTable">
+            <thead>
+                <tr>
+                    <th style="width: 15%;">اليوم</th>
+                    <th style="width: 20%;">المجال</th>
+                    <th style="width: 65%;">نص الآيات</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    let surahData = [];
+
+    // Load Surahs from API on startup
+    async function loadSurahs() {
+        try {
+            const response = await fetch('https://alquran.cloud');
+            const data = await response.json();
+            surahData = data.data;
+            const s1 = document.getElementById('surah1');
+            const s2 = document.getElementById('surah2');
+            
+            surahData.forEach(surah => {
+                let opt = `<option value="${surah.number}">${surah.number}. ${surah.name}</option>`;
+                s1.innerHTML += opt;
+                s2.innerHTML += opt;
+            });
+            updateMaxVerse(1);
+        } catch (e) { alert("خطأ في الاتصال بقاعدة البيانات"); }
+    }
+
+    function updateMaxVerse(num) {
+        const sId = num === 1 ? 'surah1' : 'surah2';
+        const surahNum = document.getElementById(sId).value;
+        const surah = surahData.find(s => s.number == surahNum);
+        if (num === 1) {
+            document.getElementById('lastVerseSurah1').value = surah.numberOfAyahs;
+            document.getElementById('startVerse').max = surah.numberOfAyahs;
+        } else {
+            document.getElementById('endVerse').max = surah.numberOfAyahs;
+        }
+    }
+
+    function toggleSecondSurah() {
+        const section = document.getElementById('secondSurahSection');
+        const endLabel = document.getElementById('endLabel');
+        const isChecked = document.getElementById('splitToggle').checked;
+        section.style.display = isChecked ? 'block' : 'none';
+        endLabel.innerText = isChecked ? 'نهاية الربع في السورة الثانية' : 'رقم الآية نهاية الربع';
+        updateMaxVerse(2);
+    }
+
+    async function fetchVerseText(ref) {
+        const res = await fetch(`https://alquran.cloud{ref}/ar.alafasy`);
+        const data = await res.json();
+        return `${data.data.text} <span class="verse-num">(${data.data.numberInSurah})</span> `;
+    }
+
+    async function generateTable() {
+        const loader = document.getElementById('loader');
+        const btn = document.getElementById('generateBtn');
+        const s1Num = document.getElementById('surah1').value;
+        const s1Name = surahData.find(s => s.number == s1Num).name;
+        const start = parseInt(document.getElementById('startVerse').value);
+        const end = parseInt(document.getElementById('endVerse').value);
+        const isSplit = document.getElementById('splitToggle').checked;
+
+        let allVerses = [];
+        if (isSplit) {
+            const lastS1 = parseInt(document.getElementById('lastVerseSurah1').value);
+            const s2Num = document.getElementById('surah2').value;
+            const s2Name = surahData.find(s => s.number == s2Num).name;
+            for (let i = start; i <= lastS1; i++) allVerses.push({ref: `${s1Num}:${i}`, label: `${s1Name} ${i}`});
+            for (let i = 1; i <= end; i++) allVerses.push({ref: `${s2Num}:${i}`, label: `${s2Name} ${i}`});
+        } else {
+            for (let i = start; i <= end; i++) allVerses.push({ref: `${s1Num}:${i}`, label: i});
+        }
+
+        if (allVerses.length < 7) return alert("يجب أن يحتوي الربع على 7 آيات على الأقل للتقسيم الأسبوعي");
+
+        loader.style.display = 'block';
+        btn.disabled = true;
+
+        const days = ['الخميس', 'الجمعة', 'السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء'];
+        const perDay = Math.floor(allVerses.length / 7);
+        let remainder = allVerses.length % 7;
+        const tableBody = document.getElementById('tableBody');
+        tableBody.innerHTML = '';
+        
+        let currentIndex = 0;
+
+        for (const day of days) {
+            let count = perDay + (remainder > 0 ? 1 : 0);
+            remainder--;
+            let dayBatch = allVerses.slice(currentIndex, currentIndex + count);
+            
+            // Fetch texts for this day
+            let dayTextContent = "";
+            for (const item of dayBatch) {
+                dayTextContent += await fetchVerseText(item.ref);
+            }
+
+            let range = `${dayBatch[0].label} - ${dayBatch[dayBatch.length-1].label}`;
+            tableBody.innerHTML += `
+                <tr>
+                    <td><strong>${day}</strong></td>
+                    <td>${range}</td>
+                    <td class="quran-text">${dayTextContent}</td>
+                </tr>`;
+            currentIndex += count;
+        }
+
+        loader.style.display = 'none';
+        btn.disabled = false;
+        document.getElementById('resultTable').style.display = 'table';
+        document.getElementById('actionButtons').style.display = 'flex';
+    }
+
+    function saveAsImage() {
+        html2canvas(document.getElementById('resultTable')).then(canvas => {
+            const link = document.createElement('a');
+            link.download = 'جدول_مقرأتي.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        });
+    }
+
+    function saveAsPDF() {
+        const { jsPDF } = window.jspdf;
+        html2canvas(document.getElementById('resultTable')).then(canvas => {
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            pdf.addImage(imgData, 'PNG', 0, 10, pdfWidth, pdfHeight);
+            pdf.save("جدول_مقرأتي.pdf");
+        });
+    }
+
+    window.onload = loadSurahs;
+</script>
+
+</body>
+</html>
