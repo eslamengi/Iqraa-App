@@ -95,7 +95,7 @@
     // Load Surahs from API on startup
     async function loadSurahs() {
         try {
-            const response = await fetch('https://alquran.cloud');
+            const response = await fetch('https://api.alquran.cloud/v1/surah');
             const data = await response.json();
             surahData = data.data;
             const s1 = document.getElementById('surah1');
